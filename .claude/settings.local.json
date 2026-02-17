@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)",
+      "Bash(ls:*)",
+      "Bash(pkill:*)",
+      "Bash(kill:*)",
+      "Bash(.gitignore:*)",
+      "Bash(README.md:*)",
+      "Bash(.env.example:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
