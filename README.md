@@ -1,6 +1,7 @@
-# Legit Jarvis - Marvel Rivals Scrim Management Bot
+# Legit Jarvis - Marvel Rivals Management & Analyst Discord bot
 
-A Discord bot for managing Marvel Rivals esports team scrims, integrating with TeamUp Calendar to provide automated reminders, roster management, and team coordination features.
+A Discord bot for managing Marvel Rivals esports team, integrating with TeamUp Calendar to provide automated reminders, roster management, and team coordination features.
+Incoming Analyst features. 
 
 ## Features
 
