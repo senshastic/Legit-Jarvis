@@ -25,11 +25,6 @@ A Discord bot for managing Marvel Rivals esports team scrims, integrating with T
 - **Additional notes** - Optional field for players to provide more context
 - **Instant notifications** - Automatically notifies coaches and management
 
-### 🎮 Marvel Rivals Theme
-- **100+ inspirational quotes** - Character-themed motivational messages from Spider-Man, Iron Man, Thor, and more
-- **Game mechanics references** - Quotes about team-ups, ultimates, positioning, and strategy
-- **Daily motivation** - Random quote included in daily noon reminder
-
 ## Commands
 
 ### Calendar Commands
@@ -207,7 +202,7 @@ Modify the daily reminder time in `reminders.py`:
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are not welcome, leave me alone. 
 
 ## License
 
