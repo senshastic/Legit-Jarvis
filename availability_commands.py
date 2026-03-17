@@ -1,13 +1,13 @@
 """
 Player availability reporting commands.
 Allows players to report when they'll be late or missing events.
+Availability is fully isolated per guild — team A never sees team B's reports.
 """
 import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import Literal
-from datetime import datetime
-from utils import TeamUpAPI, Config
+from datetime import datetime, timedelta
 
 
 class AvailabilityCommands(commands.Cog):
@@ -15,36 +15,44 @@ class AvailabilityCommands(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self._event_cache = []
-        self._cache_time = None
+        # Per-guild event cache: {guild_id: (events_list, cache_timestamp)}
+        self._event_cache: dict[int, tuple[list, datetime]] = {}
+
+    def _get_team(self, interaction: discord.Interaction):
+        return self.bot.team_manager.get_team_for_guild(interaction.guild_id)
+
+    async def _get_cached_events(self, guild_id: int, team) -> list:
+        """Return cached events for this guild, refreshing if older than 5 min."""
+        cached = self._event_cache.get(guild_id)
+        if cached:
+            events, ts = cached
+            if (datetime.now() - ts).total_seconds() <= 300:
+                return events
+
+        calendar = team.get_calendar()
+        events = calendar.get_upcoming_events(days=14)
+        self._event_cache[guild_id] = (events, datetime.now())
+        return events
 
     async def event_autocomplete(
         self,
         interaction: discord.Interaction,
         current: str,
     ) -> list[app_commands.Choice[str]]:
-        """Autocomplete for event selection showing title and date/time"""
-        # Refresh cache if needed (cache for 5 minutes)
-        from datetime import datetime, timedelta
-        now = datetime.now()
-        if not self._cache_time or (now - self._cache_time).total_seconds() > 300:
-            teamup = TeamUpAPI()
-            self._event_cache = teamup.get_upcoming_events(days=14)
-            self._cache_time = now
-
-        if not self._event_cache:
+        team = self._get_team(interaction)
+        if not team:
             return []
 
-        # Create choices with event title + date/time
-        choices = []
-        for event in self._event_cache[:25]:  # Discord limits to 25 choices
-            start_time = datetime.fromisoformat(event['start_dt'].replace('Z', '+00:00'))
-            # Format: "Event Title - Feb 17, 3:00 PM"
-            display_name = f"{event.get('title', 'Unknown')} - {start_time.strftime('%b %d, %I:%M %p')}"
-            # Store event ID as the value
-            choices.append(app_commands.Choice(name=display_name[:100], value=event['id']))
+        events = await self._get_cached_events(interaction.guild_id, team)
+        if not events:
+            return []
 
-        # Filter based on current input
+        choices = []
+        for event in events[:25]:
+            start_time = datetime.fromisoformat(event['start_dt'].replace('Z', '+00:00'))
+            display = f"{event.get('title', 'Unknown')} - {start_time.strftime('%b %d, %I:%M %p')}"
+            choices.append(app_commands.Choice(name=display[:100], value=event['id']))
+
         if current:
             choices = [c for c in choices if current.lower() in c.name.lower()]
 
@@ -64,50 +72,31 @@ class AvailabilityCommands(commands.Cog):
         event: str,
         notes: str = None
     ):
-        """Report availability status for an event"""
+        team = self._get_team(interaction)
+        if not team:
+            return await interaction.response.send_message(
+                "❌ This server is not configured. Add it to `teams.json`.",
+                ephemeral=True
+            )
 
-        # Get the event by ID
-        teamup = TeamUpAPI()
-        events = teamup.get_upcoming_events(days=14)
-
+        events = await self._get_cached_events(interaction.guild_id, team)
         if not events:
-            await interaction.response.send_message(
-                "❌ No upcoming events found!",
-                ephemeral=True
+            return await interaction.response.send_message(
+                "❌ No upcoming events found!", ephemeral=True
             )
-            return
 
-        # Find event by ID
-        matching_event = None
-        for e in events:
-            if e['id'] == event:
-                matching_event = e
-                break
-
+        matching_event = next((e for e in events if e['id'] == event), None)
         if not matching_event:
-            await interaction.response.send_message(
-                "❌ Could not find the selected event!",
-                ephemeral=True
+            return await interaction.response.send_message(
+                "❌ Could not find the selected event!", ephemeral=True
             )
-            return
 
-        # Send notification to channel
-        if not Config.REMINDER_CHANNEL_ID:
-            await interaction.response.send_message(
-                "❌ Reminder channel not configured!",
-                ephemeral=True
-            )
-            return
-
-        channel = self.bot.get_channel(Config.REMINDER_CHANNEL_ID)
+        channel = self.bot.get_channel(team.reminder_channel_id)
         if not channel:
-            await interaction.response.send_message(
-                "❌ Could not find reminder channel!",
-                ephemeral=True
+            return await interaction.response.send_message(
+                "❌ Reminder channel not configured or not found!", ephemeral=True
             )
-            return
 
-        # Create notification embed
         start_time = datetime.fromisoformat(matching_event['start_dt'].replace('Z', '+00:00'))
         unix_timestamp = int(start_time.timestamp())
 
@@ -119,56 +108,36 @@ class AvailabilityCommands(commands.Cog):
             color=color,
             timestamp=datetime.now()
         )
-
-        embed.add_field(
-            name="Player",
-            value=f"{interaction.user.mention}",
-            inline=True
-        )
-
-        embed.add_field(
-            name="Status",
-            value=f"**{status}**",
-            inline=True
-        )
-
+        embed.add_field(name="Player", value=interaction.user.mention, inline=True)
+        embed.add_field(name="Status", value=f"**{status}**", inline=True)
         embed.add_field(
             name="Event",
             value=f"{matching_event.get('title', 'Unknown')}\n<t:{unix_timestamp}:F>",
             inline=False
         )
-
         if notes:
-            embed.add_field(
-                name="Additional Information",
-                value=notes,
-                inline=False
-            )
-
+            embed.add_field(name="Additional Information", value=notes, inline=False)
         embed.set_footer(text=f"Reported by {interaction.user.display_name}")
 
-        # Create mention string for coaches and management
         mentions = []
-        if Config.COACH_ROLE_ID:
-            mentions.append(f"<@&{Config.COACH_ROLE_ID}>")
-        if Config.MANAGEMENT_ROLE_ID:
-            mentions.append(f"<@&{Config.MANAGEMENT_ROLE_ID}>")
-
-        mention_text = " ".join(mentions) if mentions else ""
+        if team.coach_role_id:
+            mentions.append(f"<@&{team.coach_role_id}>")
+        if team.management_role_id:
+            mentions.append(f"<@&{team.management_role_id}>")
+        mention_text = " ".join(mentions)
 
         try:
             await channel.send(content=mention_text, embed=embed)
             await interaction.response.send_message(
-                f"✅ Availability reported! Coaches and management have been notified that you'll be **{status.lower()}** for {matching_event.get('title', 'the event')}.",
+                f"✅ Availability reported! Coaches and management have been notified that you'll be "
+                f"**{status.lower()}** for {matching_event.get('title', 'the event')}.",
                 ephemeral=True
             )
         except Exception as e:
             await interaction.response.send_message(
-                f"❌ Error sending notification: {e}",
-                ephemeral=True
+                f"❌ Error sending notification: {e}", ephemeral=True
             )
 
 
 async def setup(bot):
-    """Setup function to add this cog to the bot."""
     await bot.add_cog(AvailabilityCommands(bot))

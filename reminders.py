@@ -1,8 +1,9 @@
 import discord
 from discord.ext import commands, tasks
 from datetime import datetime, timedelta, time
-from utils import TeamUpAPI, format_event_embed, Config
+from embeds import format_event_embed
 from roster_storage import RosterStorage
+from config import Config
 import random
 
 
@@ -113,128 +114,113 @@ INSPIRATIONAL_QUOTES = [
 
 
 class Reminders(commands.Cog):
-    """Automatic reminder system for scrims"""
-    
+    """Automatic reminder system for scrims — runs for every configured team."""
+
     def __init__(self, bot):
         self.bot = bot
-        self.sent_reminders = set()  # Track sent reminders to avoid duplicates
-        self.roster_storage = RosterStorage()  # Initialize roster storage
+        self.sent_reminders = set()
+        self.roster_storage = RosterStorage()
         self.check_reminders.start()
         self.daily_noon_reminder.start()
 
     def cog_unload(self):
-        """Cleanup when cog is unloaded"""
         self.check_reminders.cancel()
         self.daily_noon_reminder.cancel()
-    
-    @tasks.loop(minutes=Config.CHECK_INTERVAL)
-    async def check_reminders(self):
-        """Check for upcoming events and send reminders"""
-        if not Config.REMINDER_CHANNEL_ID:
-            return
-        
-        channel = self.bot.get_channel(Config.REMINDER_CHANNEL_ID)
-        if not channel:
-            print(f"Could not find channel with ID {Config.REMINDER_CHANNEL_ID}")
-            return
-        
-        # Initialize TeamUp API
-        teamup = TeamUpAPI()
-        
-        # Get events for next 7 days
-        events = teamup.get_upcoming_events(days=7)
-        
-        for event in events:
-            for hours in Config.REMINDER_TIMES:
-                if self.should_send_reminder(event, hours):
-                    await self.send_reminder(channel, event, hours)
-    
-    @check_reminders.before_loop
-    async def before_check_reminders(self):
-        """Wait for bot to be ready before starting the loop"""
-        await self.bot.wait_until_ready()
-        print(f"✅ Reminder checker started! Checking every {Config.CHECK_INTERVAL} minutes")
-    
-    def should_send_reminder(self, event, hours_before):
-        """Check if we should send a reminder now"""
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def should_send_reminder(self, team_id: str, event: dict, hours_before: float) -> bool:
         event_time = datetime.fromisoformat(event['start_dt'].replace('Z', '+00:00'))
         reminder_time = event_time - timedelta(hours=hours_before)
         now = datetime.now(reminder_time.tzinfo)
-        
-        # Check if it's time to send (within 5 min window)
         time_diff = (now - reminder_time).total_seconds()
-        
-        # Create unique key for this reminder
-        reminder_key = f"{event['id']}_{hours_before}"
-        
-        # Send if within 5 minutes and not already sent
-        if -300 <= time_diff <= 300 and reminder_key not in self.sent_reminders:
-            self.sent_reminders.add(reminder_key)
+        key = f"{team_id}_{event['id']}_{hours_before}"
+        if -300 <= time_diff <= 300 and key not in self.sent_reminders:
+            self.sent_reminders.add(key)
             return True
-        
         return False
-    
-    async def send_reminder(self, channel, event, hours_before):
-        """Send a reminder message for an event"""
-        # Load roster based on event title (team name)
-        team_name = event.get('title', '').strip()
+
+    async def send_reminder(self, channel, team, event, hours_before):
+        calendar = team.get_calendar()
+        team_name = event.get('team_name') or event.get('title', '').strip()
         roster = self.roster_storage.get_roster(team_name) if team_name else None
+        event_type = calendar.get_event_type(event)
 
-        # Get event type from subcalendar
-        teamup = TeamUpAPI()
-        subcal_ids = event.get('subcalendar_ids', event.get('subcalendar_id'))
-        event_type = teamup.get_subcalendar_name(subcal_ids) if subcal_ids else None
-
-        # Create embed with roster and event type if available
         embed = format_event_embed(event, roster=roster, event_type=event_type)
-        
-        # Create mention string
+
         mentions = []
-        if Config.PLAYER_ROLE_ID:
-            mentions.append(f"<@&{Config.PLAYER_ROLE_ID}>")
-        if Config.COACH_ROLE_ID:
-            mentions.append(f"<@&{Config.COACH_ROLE_ID}>")
-        
-        mention_text = " ".join(mentions) if mentions else ""
-        
-        # Get reminder message based on time
-        reminder_msg = self.get_reminder_message(hours_before)
-        
-        # Send reminder
-        message_content = f"{reminder_msg}\n{mention_text}"
-        
+        if team.player_role_id:
+            mentions.append(f"<@&{team.player_role_id}>")
+        if team.coach_role_id:
+            mentions.append(f"<@&{team.coach_role_id}>")
+        mention_text = " ".join(mentions)
+
         try:
-            await channel.send(content=message_content, embed=embed)
-            print(f"✅ Sent {hours_before}h reminder for: {event.get('title', 'Unknown')}")
+            await channel.send(
+                content=f"🚨 **EVENT STARTING IN 30 MINUTES**\n{mention_text}",
+                embed=embed
+            )
+            print(f"✅ [{team.name}] Sent reminder for: {event.get('title', 'Unknown')}")
         except Exception as e:
-            print(f"❌ Error sending reminder: {e}")
-    
-    def get_reminder_message(self, hours_before):
-        """Get appropriate reminder message based on time"""
-        return "🚨 **EVENT STARTING IN 30 MINUTES**"
-    
-    @tasks.loop(time=time(hour=12, minute=0))  # Run at noon (12:00 PM) every day
+            print(f"❌ [{team.name}] Error sending reminder: {e}")
+
+    # ------------------------------------------------------------------
+    # Background tasks
+    # ------------------------------------------------------------------
+
+    @tasks.loop(minutes=Config.CHECK_INTERVAL)
+    async def check_reminders(self):
+        """Check for upcoming events across all teams and send reminders."""
+        for team in self.bot.team_manager.get_all_teams():
+            if not team.reminder_channel_id:
+                continue
+            channel = self.bot.get_channel(team.reminder_channel_id)
+            if not channel:
+                continue
+            try:
+                calendar = team.get_calendar()
+                events = calendar.get_upcoming_events(days=7)
+            except Exception as e:
+                print(f"❌ [{team.name}] Calendar error: {e}")
+                continue
+
+            for event in events:
+                for hours in Config.REMINDER_TIMES:
+                    if self.should_send_reminder(team.team_id, event, hours):
+                        await self.send_reminder(channel, team, event, hours)
+
+    @check_reminders.before_loop
+    async def before_check_reminders(self):
+        await self.bot.wait_until_ready()
+        print(f"✅ Reminder checker started (every {Config.CHECK_INTERVAL} min)")
+
+    @tasks.loop(time=time(hour=12, minute=0))
     async def daily_noon_reminder(self):
-        """Send daily reminder at noon with today's events and inspirational quote"""
-        if not Config.REMINDER_CHANNEL_ID:
-            return
+        """Send daily noon summary to each team's reminder channel."""
+        for team in self.bot.team_manager.get_all_teams():
+            if not team.reminder_channel_id:
+                continue
+            channel = self.bot.get_channel(team.reminder_channel_id)
+            if not channel:
+                continue
+            try:
+                await self._send_daily_summary(channel, team)
+            except Exception as e:
+                print(f"❌ [{team.name}] Daily reminder error: {e}")
 
-        channel = self.bot.get_channel(Config.REMINDER_CHANNEL_ID)
-        if not channel:
-            print(f"Could not find channel with ID {Config.REMINDER_CHANNEL_ID}")
-            return
+    @daily_noon_reminder.before_loop
+    async def before_daily_noon_reminder(self):
+        await self.bot.wait_until_ready()
+        print("✅ Daily noon reminder started (12:00 PM daily)")
 
-        # Initialize TeamUp API
-        teamup = TeamUpAPI()
+    async def _send_daily_summary(self, channel, team):
+        calendar = team.get_calendar()
         today = datetime.now().strftime('%Y-%m-%d')
-
-        # Get events for today
-        events = teamup.get_events(start_date=today, end_date=today)
-
-        # Get a random inspirational quote
+        events = calendar.get_events(start_date=today, end_date=today)
         quote = random.choice(INSPIRATIONAL_QUOTES)
 
-        # Create embed
         embed = discord.Embed(
             title="🌅 Good Day, Champions!",
             description=f"*{quote}*",
@@ -243,22 +229,15 @@ class Reminders(commands.Cog):
         )
 
         if events:
-            # Get event types and rosters
             event_info = []
             for event in events:
                 start_time = datetime.fromisoformat(event['start_dt'].replace('Z', '+00:00'))
                 unix_timestamp = int(start_time.timestamp())
+                event_type = calendar.get_event_type(event)
 
-                # Get event type
-                subcal_ids = event.get('subcalendar_ids', event.get('subcalendar_id'))
-                event_type = teamup.get_subcalendar_name(subcal_ids) if subcal_ids else None
-
-                # Get roster
-                team_name = event.get('title', '').strip()
-                roster = self.roster_storage.get_roster(team_name) if team_name else None
-
-                # Build event info
-                info_parts = [f"**{event.get('title', 'Event')}**"]
+                display_name = event.get('team_name') or event.get('title', 'Event')
+                roster = self.roster_storage.get_roster(display_name) if display_name else None
+                info_parts = [f"**{display_name}**"]
                 info_parts.append(f"⏰ <t:{unix_timestamp}:t>")
                 if event_type:
                     emoji = "🎮"
@@ -276,7 +255,6 @@ class Reminders(commands.Cog):
                     if len(roster) > 6:
                         roster_text += f" +{len(roster) - 6} more"
                     info_parts.append(f"👥 {roster_text}")
-
                 event_info.append("\n".join(info_parts))
 
             embed.add_field(
@@ -293,41 +271,55 @@ class Reminders(commands.Cog):
 
         embed.set_footer(text="Let's make today count!")
 
-        # Create mention string
         mentions = []
-        if Config.PLAYER_ROLE_ID:
-            mentions.append(f"<@&{Config.PLAYER_ROLE_ID}>")
-        if Config.COACH_ROLE_ID:
-            mentions.append(f"<@&{Config.COACH_ROLE_ID}>")
+        if team.player_role_id:
+            mentions.append(f"<@&{team.player_role_id}>")
+        if team.coach_role_id:
+            mentions.append(f"<@&{team.coach_role_id}>")
+        mention_text = " ".join(mentions)
 
-        mention_text = " ".join(mentions) if mentions else ""
+        await channel.send(content=mention_text, embed=embed)
+        print(f"✅ [{team.name}] Daily summary sent ({len(events) if events else 0} event(s))")
 
-        try:
-            await channel.send(content=mention_text, embed=embed)
-            print(f"✅ Sent daily noon reminder with {len(events) if events else 0} event(s)")
-        except Exception as e:
-            print(f"❌ Error sending daily noon reminder: {e}")
-
-    @daily_noon_reminder.before_loop
-    async def before_daily_noon_reminder(self):
-        """Wait for bot to be ready before starting the daily reminder loop"""
-        await self.bot.wait_until_ready()
-        print("✅ Daily noon reminder started! Will send at 12:00 PM every day")
+    # ------------------------------------------------------------------
+    # Manual trigger commands
+    # ------------------------------------------------------------------
 
     @commands.command(name='forcecheckremind')
     @commands.has_permissions(administrator=True)
     async def force_check(self, ctx):
-        """Manually trigger reminder check (Admin only)"""
+        team = self.bot.team_manager.get_team_for_guild(ctx.guild.id)
+        if not team:
+            return await ctx.send("❌ This server is not configured in `teams.json`.")
         await ctx.send("🔄 Forcing reminder check...")
-        await self.check_reminders()
+        channel = self.bot.get_channel(team.reminder_channel_id)
+        if channel:
+            try:
+                calendar = team.get_calendar()
+                events = calendar.get_upcoming_events(days=7)
+                for event in events:
+                    for hours in Config.REMINDER_TIMES:
+                        if self.should_send_reminder(team.team_id, event, hours):
+                            await self.send_reminder(channel, team, event, hours)
+            except Exception as e:
+                await ctx.send(f"❌ Calendar error: {e}")
+                return
         await ctx.send("✅ Reminder check complete!")
 
     @commands.command(name='forcedaily')
     @commands.has_permissions(administrator=True)
     async def force_daily(self, ctx):
-        """Manually trigger daily noon reminder (Admin only)"""
+        team = self.bot.team_manager.get_team_for_guild(ctx.guild.id)
+        if not team:
+            return await ctx.send("❌ This server is not configured in `teams.json`.")
         await ctx.send("🔄 Forcing daily reminder...")
-        await self.daily_noon_reminder()
+        channel = self.bot.get_channel(team.reminder_channel_id)
+        if channel:
+            try:
+                await self._send_daily_summary(channel, team)
+            except Exception as e:
+                await ctx.send(f"❌ Error: {e}")
+                return
         await ctx.send("✅ Daily reminder sent!")
 
 

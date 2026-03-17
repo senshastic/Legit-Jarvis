@@ -47,6 +47,9 @@ Thumbs.db
 # Bot data
 rosters.json
 
+# Google service account credentials
+legitjarvis-*.json
+
 # Temporary files
 *.tmp
 *.bak

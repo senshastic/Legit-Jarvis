@@ -1,20 +1,17 @@
 import discord
 from discord.ext import commands
-from discord import app_commands
 import os
 from dotenv import load_dotenv
-import asyncio
+
+from team_manager import TeamManager
 
 load_dotenv()
 
-# Bot configuration
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 
 bot = commands.Bot(command_prefix='!', intents=intents)
-
-# Store bot start time
 bot.start_time = None
 
 
@@ -22,26 +19,24 @@ bot.start_time = None
 async def on_ready():
     print(f'{bot.user} has connected to Discord!')
     print(f'Bot is in {len(bot.guilds)} guild(s)')
+
+    bot.team_manager = TeamManager()
+
     print('Loading cogs...')
-
-    # Load all cogs
     await load_cogs()
-
     print('Bot is ready!')
-    print('💡 Use /sync to register slash commands with Discord')
+    print('💡 Use !sync to register slash commands with Discord')
 
 
 async def load_cogs():
-    """Load all cog files"""
     cogs = [
         'reminders',
         'calendar_commands',
         'admin_commands',
         'help_commands',
         'roster_commands',
-        'availability_commands'
+        'availability_commands',
     ]
-
     for cog in cogs:
         try:
             await bot.load_extension(cog)
@@ -53,7 +48,7 @@ async def load_cogs():
 @bot.command(name='sync')
 @commands.is_owner()
 async def sync(ctx):
-    """Sync slash commands with Discord (Owner only)"""
+    """Sync slash commands with Discord (Owner only)."""
     try:
         synced = await bot.tree.sync()
         await ctx.send(f"✅ Synced {len(synced)} slash command(s)!")
@@ -65,11 +60,10 @@ async def sync(ctx):
 
 @bot.event
 async def on_command_error(ctx, error):
-    """Global error handler"""
     if isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ You don't have permission to use this command!")
     elif isinstance(error, commands.CommandNotFound):
-        pass  # Ignore unknown commands
+        pass
     elif isinstance(error, commands.NotOwner):
         await ctx.send("❌ Only the bot owner can use this command!")
     else:
@@ -82,5 +76,5 @@ if __name__ == '__main__':
     if not TOKEN:
         print("Error: DISCORD_BOT_TOKEN not found in environment variables")
         exit(1)
-    
+
     bot.run(TOKEN)

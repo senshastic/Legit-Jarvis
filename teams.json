@@ -1,0 +1,28 @@
+{
+  "teams": [
+    {
+      "team_id": "team1",
+      "name": "Legit",
+      "guild_id": 1471923867894284411,
+      "calendar_type": "teamup",
+      "reminder_channel_id": 1471923869198586042,
+      "player_role_id": 1471923868301000859,
+      "coach_role_id": 1471938244634607742,
+      "management_role_id": 1471923868301000860,
+      "teamup_calendar_id": "ks8kwbie5iocbxgbtd",
+      "teamup_api_key_env": "TEAM1_TEAMUP_API_KEY"
+    },
+    {
+      "team_id": "team2",
+      "name": "SSG",
+      "guild_id": 1466647941518462998,
+      "calendar_type": "google",
+      "reminder_channel_id": 1475515961984684052,
+      "player_role_id": 1466648199006523538,
+      "coach_role_id": 1477677485285048440,
+      "management_role_id": 1466648018211180554,
+      "google_calendar_id": "92ac8caf77bdfc620fd9ba57c1add251e56a52877e22e966e7f1d6993b54cfcc@group.calendar.google.com",
+      "google_credentials_file": "legitjarvis-3e906fc3aada.json"
+    }
+  ]
+}

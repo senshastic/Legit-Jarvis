@@ -12,7 +12,10 @@
       "Bash(git init:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(python bot.py)",
+      "Bash(python -u bot.py)",
+      "WebSearch"
     ]
   }
 }
