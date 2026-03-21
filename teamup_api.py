@@ -77,3 +77,19 @@ class TeamUpAPI(CalendarProvider):
         if isinstance(subcalendar_id, list) and len(subcalendar_id) > 0:
             subcalendar_id = subcalendar_id[0]
         return self.subcalendars.get(str(subcalendar_id), "Unknown")
+
+    def append_availability_note(self, event_id, note: str) -> bool:
+        """Append an availability note to the TeamUp event's notes field."""
+        event = self.get_event(event_id)
+        if not event:
+            return False
+        current_notes = event.get('notes') or ''
+        updated_notes = (current_notes.rstrip() + '\n' + note).lstrip()
+        url = f"{self.base_url}/events/{event_id}"
+        try:
+            response = requests.patch(url, headers=self.headers, json={'notes': updated_notes})
+            response.raise_for_status()
+            return True
+        except requests.exceptions.RequestException as e:
+            print(f"Error updating TeamUp event {event_id}: {e}")
+            return False

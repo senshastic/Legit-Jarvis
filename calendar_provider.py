@@ -30,3 +30,11 @@ class CalendarProvider(ABC):
         e.g. 'Scrim', 'Official', 'Warmup', 'VOD', or None.
         """
         pass
+
+    def append_availability_note(self, event_id, note: str) -> bool:
+        """
+        Append an availability note to the event's description/notes.
+        Returns True on success, False on failure.
+        Override in providers that support writes.
+        """
+        return False

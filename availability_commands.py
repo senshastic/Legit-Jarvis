@@ -128,6 +128,15 @@ class AvailabilityCommands(commands.Cog):
 
         try:
             await channel.send(content=mention_text, embed=embed)
+
+            # Push availability note to the calendar event
+            calendar = team.get_calendar()
+            emoji = "⏰" if status == 'Late' else "❌"
+            cal_note = f"{emoji} {interaction.user.display_name} — {status}"
+            if notes:
+                cal_note += f": {notes}"
+            calendar.append_availability_note(matching_event['id'], cal_note)
+
             await interaction.response.send_message(
                 f"✅ Availability reported! Coaches and management have been notified that you'll be "
                 f"**{status.lower()}** for {matching_event.get('title', 'the event')}.",

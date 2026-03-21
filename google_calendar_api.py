@@ -12,7 +12,7 @@ from googleapiclient.discovery import build
 
 from calendar_provider import CalendarProvider
 
-SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
+SCOPES = ['https://www.googleapis.com/auth/calendar.events']
 
 _TYPE_KEYWORDS = [
     ('Scrim',    ['scrim']),
@@ -147,3 +147,21 @@ class GoogleCalendarAPI(CalendarProvider):
         title = event.get('title', '')
         notes = event.get('notes', '')
         return _infer_event_type(title + ' ' + notes)
+
+    def append_availability_note(self, event_id, note: str) -> bool:
+        """Append an availability note to the Google Calendar event's description."""
+        try:
+            raw = self._service.events().get(
+                calendarId=self.calendar_id, eventId=event_id
+            ).execute()
+            current_desc = raw.get('description') or ''
+            updated_desc = (current_desc.rstrip() + '\n' + note).lstrip()
+            self._service.events().patch(
+                calendarId=self.calendar_id,
+                eventId=event_id,
+                body={'description': updated_desc}
+            ).execute()
+            return True
+        except Exception as e:
+            print(f"Error updating Google Calendar event {event_id}: {e}")
+            return False
