@@ -18,10 +18,10 @@ class TeamConfig:
         self.name:              str = data['name']
         self.guild_id:          int = int(data['guild_id'])
         self.calendar_type:     str = data['calendar_type']   # "teamup" | "google"
-        self.reminder_channel_id:  int = int(data['reminder_channel_id'])
-        self.player_role_id:    int = int(data.get('player_role_id', 0))
-        self.coach_role_id:     int = int(data.get('coach_role_id', 0))
-        self.management_role_id: int = int(data.get('management_role_id', 0))
+        self.reminder_channel_id:  Optional[int] = int(data['reminder_channel_id']) if data.get('reminder_channel_id') else None
+        self.player_role_id:    int = int(data['player_role_id']) if data.get('player_role_id') else 0
+        self.coach_role_id:     int = int(data['coach_role_id']) if data.get('coach_role_id') else 0
+        self.management_role_id: int = int(data['management_role_id']) if data.get('management_role_id') else 0
 
         # TeamUp-specific
         self.teamup_calendar_id: Optional[str] = data.get('teamup_calendar_id')

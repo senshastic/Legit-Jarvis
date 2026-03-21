@@ -1,14 +1,26 @@
 {
   "teams": [
     {
-      "team_id": "team1",
+      "team_id": "team1_old",
       "name": "Legit",
       "guild_id": 1471923867894284411,
       "calendar_type": "teamup",
-      "reminder_channel_id": 1471923869198586042,
+      "reminder_channel_id": null,
       "player_role_id": 1471923868301000859,
       "coach_role_id": 1471938244634607742,
       "management_role_id": 1471923868301000860,
+      "teamup_calendar_id": "ks8kwbie5iocbxgbtd",
+      "teamup_api_key_env": "TEAM1_TEAMUP_API_KEY"
+    },
+    {
+      "team_id": "team1",
+      "name": "Legit",
+      "guild_id": 1483232851120881769,
+      "calendar_type": "teamup",
+      "reminder_channel_id": 1484874574440173648,
+      "player_role_id": 1483517271501570060,
+      "coach_role_id": 1483517424618700903,
+      "management_role_id": null,
       "teamup_calendar_id": "ks8kwbie5iocbxgbtd",
       "teamup_api_key_env": "TEAM1_TEAMUP_API_KEY"
     },
