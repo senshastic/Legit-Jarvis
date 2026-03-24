@@ -34,7 +34,8 @@
       "coach_role_id": 1477677485285048440,
       "management_role_id": 1466648018211180554,
       "google_calendar_id": "92ac8caf77bdfc620fd9ba57c1add251e56a52877e22e966e7f1d6993b54cfcc@group.calendar.google.com",
-      "google_credentials_file": "legitjarvis-3e906fc3aada.json"
+      "google_credentials_file": "legitjarvis-3e906fc3aada.json",
+      "timezone": "America/New_York"
     }
   ]
 }

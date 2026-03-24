@@ -7,8 +7,6 @@ from roster_storage import RosterStorage
 from config import Config
 import random
 
-NA_TZ = ZoneInfo("America/New_York")
-
 
 # Marvel Rivals themed inspirational quotes
 INSPIRATIONAL_QUOTES = [
@@ -199,7 +197,7 @@ class Reminders(commands.Cog):
         await self.bot.wait_until_ready()
         print(f"✅ Reminder checker started (every {Config.CHECK_INTERVAL} min)")
 
-    @tasks.loop(time=time(hour=12, minute=0, tzinfo=NA_TZ))
+    @tasks.loop(time=time(hour=12, minute=0))
     async def daily_noon_reminder(self):
         """Send daily noon summary to each team's reminder channel."""
         for team in self.bot.team_manager.get_all_teams():
@@ -220,7 +218,8 @@ class Reminders(commands.Cog):
 
     async def _send_daily_summary(self, channel, team):
         calendar = team.get_calendar()
-        today = datetime.now(NA_TZ).strftime('%Y-%m-%d')
+        tz = ZoneInfo(team.timezone) if team.timezone else None
+        today = datetime.now(tz).strftime('%Y-%m-%d')
         events = calendar.get_events(start_date=today, end_date=today)
         quote = random.choice(INSPIRATIONAL_QUOTES)
 

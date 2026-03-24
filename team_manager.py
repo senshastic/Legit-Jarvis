@@ -40,6 +40,8 @@ class TeamConfig:
             else data.get('google_credentials_file')
         )
 
+        self.timezone: Optional[str] = data.get('timezone')  # e.g. "America/New_York"
+
         self._calendar: Optional[CalendarProvider] = None
 
     def get_calendar(self) -> CalendarProvider:
