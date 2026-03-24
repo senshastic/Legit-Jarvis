@@ -6,6 +6,7 @@ service account email address found in the credentials JSON file.
 Required packages: google-api-python-client google-auth-httplib2 google-auth-oauthlib
 """
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
@@ -94,8 +95,9 @@ def _normalize(event: dict) -> dict:
 class GoogleCalendarAPI(CalendarProvider):
     """Read-only Google Calendar provider using a service account."""
 
-    def __init__(self, calendar_id: str, credentials_file: str):
+    def __init__(self, calendar_id: str, credentials_file: str, tz_name: str = None):
         self.calendar_id = calendar_id
+        self._tz = ZoneInfo(tz_name) if tz_name else timezone.utc
         creds = service_account.Credentials.from_service_account_file(
             credentials_file, scopes=SCOPES
         )
@@ -104,13 +106,13 @@ class GoogleCalendarAPI(CalendarProvider):
     def get_events(self, start_date=None, end_date=None) -> list:
         now = datetime.now(timezone.utc)
         if start_date:
-            time_min = datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=timezone.utc).isoformat()
+            time_min = datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=self._tz).isoformat()
         else:
             time_min = now.isoformat()
 
         if end_date:
             # end of the end_date day
-            time_max = (datetime.strptime(end_date, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+            time_max = (datetime.strptime(end_date, '%Y-%m-%d').replace(tzinfo=self._tz)
                         + timedelta(days=1)).isoformat()
         else:
             time_max = (now + timedelta(days=7)).isoformat()

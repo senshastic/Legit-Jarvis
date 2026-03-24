@@ -53,7 +53,7 @@ class TeamConfig:
             elif self.calendar_type == 'google':
                 from google_calendar_api import GoogleCalendarAPI
                 self._calendar = GoogleCalendarAPI(
-                    self.google_calendar_id, self.google_credentials_file
+                    self.google_calendar_id, self.google_credentials_file, self.timezone
                 )
             else:
                 raise ValueError(f"Unknown calendar_type '{self.calendar_type}' for team {self.team_id}")
