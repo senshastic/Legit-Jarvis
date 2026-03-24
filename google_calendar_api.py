@@ -111,9 +111,9 @@ class GoogleCalendarAPI(CalendarProvider):
             time_min = now.isoformat()
 
         if end_date:
-            # end of the end_date day
+            # end of the end_date day — extend to 6am next day for late-night sessions
             time_max = (datetime.strptime(end_date, '%Y-%m-%d').replace(tzinfo=self._tz)
-                        + timedelta(days=1)).isoformat()
+                        + timedelta(days=1, hours=6)).isoformat()
         else:
             time_max = (now + timedelta(days=7)).isoformat()
 
