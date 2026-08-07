@@ -36,6 +36,28 @@
       "google_calendar_id": "92ac8caf77bdfc620fd9ba57c1add251e56a52877e22e966e7f1d6993b54cfcc@group.calendar.google.com",
       "google_credentials_file": "legitjarvis-3e906fc3aada.json",
       "timezone": "America/New_York"
+    },
+    {
+      "team_id": "pulsar2",
+      "name": "Pulsar2",
+      "guild_id": 1535044617974579263,
+      "calendar_type": "teamup",
+      "reminder_channel_id": 1535222138649448521,
+      "player_role_id": 1535044722895097906,
+      "coach_role_id": 1535221808498876416,
+      "teamup_calendar_id": "ks6jkopkvgbozb2c4t",
+      "teamup_api_key_env": "PULSAR2_TEAMUP_API_KEY"
+    },
+    {
+      "team_id": "rad_trials",
+      "name": "Rad Trials",
+      "guild_id": 1528795825113796749,
+      "calendar_type": "teamup",
+      "reminder_channel_id": 1535222495085592667,
+      "player_role_id": 1535143756766908436,
+      "coach_role_id": 1528795825168453744,
+      "teamup_calendar_id": "ksgvfmmdb59m64e3va",
+      "teamup_api_key_env": "RADTRIALS_TEAMUP_API_KEY"
     }
   ]
 }
