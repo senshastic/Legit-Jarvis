@@ -1,5 +1,6 @@
 import requests
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 import os
 
 from calendar_provider import CalendarProvider
@@ -8,9 +9,10 @@ from calendar_provider import CalendarProvider
 class TeamUpAPI(CalendarProvider):
     """Handles all TeamUp Calendar API interactions."""
 
-    def __init__(self, calendar_id=None, api_key=None):
+    def __init__(self, calendar_id=None, api_key=None, tz_name=None):
         self.calendar_id = calendar_id or os.getenv('TEAMUP_CALENDAR_ID')
         self.api_key = api_key or os.getenv('TEAMUP_API_KEY')
+        self._tz = ZoneInfo(tz_name) if tz_name else None
         self.base_url = f"https://api.teamup.com/{self.calendar_id}"
         self.headers = {
             'Teamup-Token': self.api_key
@@ -24,19 +26,39 @@ class TeamUpAPI(CalendarProvider):
         if not end_date:
             end_date = (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d')
 
+        # TeamUp buckets events by the calendar's own configured timezone,
+        # which may not match our team's timezone (e.g. an EMEA-configured
+        # calendar used for a US Eastern team). Widen the raw query by a day
+        # on each side so events near midnight aren't dropped, then filter
+        # precisely against the team's own timezone below.
+        query_start, query_end = start_date, end_date
+        if self._tz:
+            query_start = (datetime.strptime(start_date, '%Y-%m-%d') - timedelta(days=1)).strftime('%Y-%m-%d')
+            query_end = (datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+
         url = f"{self.base_url}/events"
         params = {
-            'startDate': start_date,
-            'endDate': end_date
+            'startDate': query_start,
+            'endDate': query_end
         }
 
         try:
             response = requests.get(url, headers=self.headers, params=params)
             response.raise_for_status()
-            return response.json().get('events', [])
+            events = response.json().get('events', [])
         except requests.exceptions.RequestException as e:
             print(f"Error fetching events: {e}")
             return []
+
+        if self._tz:
+            range_start = datetime.strptime(start_date, '%Y-%m-%d').replace(tzinfo=self._tz)
+            range_end = datetime.strptime(end_date, '%Y-%m-%d').replace(tzinfo=self._tz) + timedelta(days=1)
+            events = [
+                e for e in events
+                if range_start <= datetime.fromisoformat(e['start_dt']) < range_end
+            ]
+
+        return events
 
     def get_event(self, event_id) -> dict:
         """Get a specific event by ID."""

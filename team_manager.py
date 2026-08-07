@@ -49,7 +49,7 @@ class TeamConfig:
         if self._calendar is None:
             if self.calendar_type == 'teamup':
                 from teamup_api import TeamUpAPI
-                self._calendar = TeamUpAPI(self.teamup_calendar_id, self.teamup_api_key)
+                self._calendar = TeamUpAPI(self.teamup_calendar_id, self.teamup_api_key, self.timezone)
             elif self.calendar_type == 'google':
                 from google_calendar_api import GoogleCalendarAPI
                 self._calendar = GoogleCalendarAPI(
